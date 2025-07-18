@@ -1,0 +1,115 @@
+services:
+  caddy:
+    container_name: caddy
+    image: docker.io/library/caddy:2-alpine
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data:rw
+      - caddy-config:/config:rw
+    environment:
+      - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-http://localhost}
+      - SEARXNG_TLS=${LETSENCRYPT_EMAIL:-internal}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+  redis:
+    container_name: redis
+    image: docker.io/valkey/valkey:8-alpine
+    command: valkey-server --save 30 1 --loglevel warning
+    restart: unless-stopped
+    networks:
+      - searxng
+    volumes:
+      - valkey-data2:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+  searxng:
+    container_name: searxng
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    networks:
+      - searxng
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+      - searxng-data:/var/cache/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+  crawl4ai:
+    container_name: crawl4ai
+    image: unclecode/crawl4ai:latest
+    restart: unless-stopped
+    ports:
+      - "3001:11235"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+  qdrant:
+    container_name: qdrant
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    networks:
+      - searxng
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+  web_search_api:
+    container_name: web_search_api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+      - searxng
+      - crawl4ai
+      - qdrant
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - CRAWL_URL=http://crawl4ai:11235/crawl
+      - SEARX_URL=http://searxng:8080/search
+      - COLL=webchunks
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+networks:
+  searxng:
+
+volumes:
+  caddy-data:
+  caddy-config:
+  valkey-data2:
+  searxng-data:
+  qdrant-data:
