@@ -1,13 +1,13 @@
-import httpx, os, asyncio
+import httpx
 from typing import Dict
 
 from src.config.env import CRAWL_URL
 
-async def crawl_markdown(url: str) -> Dict:
+async def crawl_markdown(url: str, query: str = None) -> Dict:
     payload = {
         "url": url,
         "f": "bm25",
-        "q": None,
+        "q": query or None,
         "c": "0"
     }
     async with httpx.AsyncClient(timeout=60) as cli:

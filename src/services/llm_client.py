@@ -14,7 +14,7 @@ class Response(BaseModel):
 def get_client():
     return genai.Client(api_key=GEMINI_API_KEY)
 
-async def summarize(context: str, query: str) -> str:
+async def summarize(context: str, query: str, sources: List[str]) -> str:
     if not GEMINI_API_KEY:
         return context[:1000]
     
@@ -28,6 +28,7 @@ async def summarize(context: str, query: str) -> str:
         "Forneça instruções quando necessário.",
         "Você precisa compilar o contexto recebido para dar uma resposta completa e detalhada, rica em instruções, informações de como fazer, como resolver e como atender a pergunta do usuário.",
         "Se o usuário perguntar sobre um assunto que não está no contexto, você deve dizer que não tem informações sobre o assunto."
+        "Insira links e referências para as informações que você fornecer."
     ]
     
     config = GenerateContentConfig(
@@ -43,7 +44,7 @@ async def summarize(context: str, query: str) -> str:
             {
                 "role": "user",
                 "parts": [
-                    {"text": f"Search context:\n{context}\nUser question: {query}"},
+                    {"text": f"Search context:\n{context}\nUser question: {query}\nSources: {sources}"},
                 ]
             }
         ],

@@ -1,5 +1,5 @@
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import Distance, VectorParams, PointStruct
+from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from sentence_transformers import SentenceTransformer
 import uuid, os
 
@@ -18,19 +18,35 @@ async def ensure_collection():
                                        distance=Distance.COSINE),
         )
 
-async def index_chunks(chunks):
+async def index_chunks(chunks, query_id: str):
+    """Indexa *chunks* vinculando-os ao *query_id* para permitir filtragem posterior."""
+    if not chunks:
+        return
+
     vecs = model.encode([c["text"] for c in chunks])
     points = [
         PointStruct(
             id=str(uuid.uuid4()),
             vector=v.tolist(),
-            payload={"url": c["url"], "title": c["title"], "text": c["text"]}
+            payload={
+                "url": c["url"],
+                "title": c["title"],
+                "text": c["text"],
+                "query_id": query_id,
+            },
         )
         for c, v in zip(chunks, vecs)
     ]
     await client.upsert(collection_name=COLL, points=points)
 
-async def retrieve(query: str, top_k: int = 4):
+async def retrieve(query: str, query_id: str, top_k: int = 8):
+    """Recupera *top_k* chunks filtrando pela mesma consulta."""
     qv = model.encode([query])[0]
-    hits = await client.search(collection_name=COLL, query_vector=qv.tolist(), limit=top_k)
+    flt = Filter(must=[FieldCondition(key="query_id", match=MatchValue(value=query_id))])
+    hits = await client.search(
+        collection_name=COLL,
+        query_vector=qv.tolist(),
+        limit=top_k,
+        query_filter=flt,
+    )
     return hits

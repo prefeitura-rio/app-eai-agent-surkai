@@ -1,4 +1,4 @@
-import re, asyncio, json
+import re, asyncio, json, uuid
 from typing import List
 
 from src.models.web_search_model import WebSearchRequest, WebSearchResponse
@@ -44,37 +44,48 @@ async def _extract_sources(text: str, fallback: List[str] | None = None) -> tupl
 
 async def web_search(request: WebSearchRequest) -> WebSearchResponse:
     results = await searx_search(request.query, k=request.k, lang=request.lang)
-    top_urls = [r["url"] for r in results]
 
-    crawled = await asyncio.gather(*(crawl_markdown(u) for u in top_urls), return_exceptions=True)
+    top_urls = [r["url"] for r in results]
+    top_titles = [r["title"] for r in results]
+    
+    crawled = await asyncio.gather(*(crawl_markdown(u, request.query) for u in top_urls), return_exceptions=True)
 
     markdown_docs = []
-    for url, res in zip(top_urls, crawled):
+    for url, res, title in zip(top_urls, crawled, top_titles):
         if isinstance(res, Exception):
             continue
         md = res.get("markdown") or res.get("content") or ""
-        title = res.get("metadata", {}).get("title", url)
-        if md:
-            markdown_docs.append({"url": url, "title": title, "markdown": md})
+        
+        if len(md.strip()) < 300:
+            continue
+        markdown_docs.append({"url": url, "title": title, "markdown": md})
 
     if not markdown_docs:
         return WebSearchResponse(summary="Não encontrei informação suficiente.", sources=[])
 
     await ensure_collection()
+    query_id = str(uuid.uuid4())
+    
+    seen_texts: set[str] = set()
     all_chunks = []
     for doc in markdown_docs:
         chunks = await chunk_markdown(doc["markdown"])
         for c in chunks:
-            all_chunks.append({"url": doc["url"], "title": doc["title"], "text": c})
+            txt = c.strip()
+            if len(txt) < 200 or txt in seen_texts:
+                continue
+            seen_texts.add(txt)
+            all_chunks.append({"url": doc["url"], "title": doc["title"], "text": txt})
 
     if all_chunks:
-        await index_chunks(all_chunks)
-        
-    hits = await retrieve(request.query, top_k=4)
+        await index_chunks(all_chunks, query_id)
+
+    hits = await retrieve(request.query, query_id, top_k=8)
+
     ctx_chunks = [h.payload["text"] for h in hits]
     context = "\n\n".join(ctx_chunks)
 
-    raw_answer = await summarize(context, request.query)
+    raw_answer = await summarize(context, request.query, top_urls)
 
     summary, sources = await _extract_sources(raw_answer, fallback=top_urls)
 

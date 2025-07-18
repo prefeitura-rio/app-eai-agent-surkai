@@ -1,5 +1,4 @@
 import httpx
-import os
 from typing import List, Dict
 
 from src.config.env import SEARX_URL
