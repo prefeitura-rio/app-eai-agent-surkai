@@ -18,4 +18,21 @@ class WebSearchResponse(BaseModel):
     summary: str = Field(..., description="Resumo objetivo que responde à query.")
     sources: List[HttpUrl] = Field(
         ..., min_items=0, max_items=8, description="Lista de URLs citadas na resposta."
+    )
+
+
+# Novo modelo para trechos de contexto organizados
+class ContextSnippet(BaseModel):
+    """Trecho individual retornado por /web_search/context."""
+
+    url: HttpUrl = Field(..., description="URL de origem do trecho.")
+    title: str = Field(..., description="Título da página.")
+    snippet: str = Field(..., description="Trecho em texto extraído da página.")
+
+
+class WebSearchContextResponse(BaseModel):
+    """Schema da resposta para /web_search/context."""
+
+    snippets: List[ContextSnippet] = Field(
+        ..., min_items=0, description="Lista de trechos relevantes para a query."
     ) 
