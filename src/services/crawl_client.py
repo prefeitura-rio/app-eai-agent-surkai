@@ -3,11 +3,11 @@ from typing import Dict
 
 from src.config.env import CRAWL_URL
 
-async def crawl_markdown(url: str, query: str = None) -> Dict:
+async def crawl_markdown(url: str) -> Dict:
     payload = {
         "url": url,
         "f": "bm25",
-        "q": query or None,
+        "skip_internal_links": True,
         "c": "0"
     }
     async with httpx.AsyncClient(timeout=60) as cli:

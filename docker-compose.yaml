@@ -57,6 +57,8 @@ services:
     restart: unless-stopped
     ports:
       - "3001:11235"
+    env_file:
+      - .llm.env
     logging:
       driver: "json-file"
       options:
@@ -80,29 +82,29 @@ services:
         max-size: "1m"
         max-file: "1"
 
-  web_search_api:
-    container_name: web_search_api
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      - redis
-      - searxng
-      - crawl4ai
-      - qdrant
-    environment:
-      - QDRANT_URL=http://qdrant:6333
-      - CRAWL_URL=http://crawl4ai:11235/crawl
-      - SEARX_URL=http://searxng:8080/search
-      - COLL=webchunks
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"
+  # web_search_api:
+  #   container_name: web_search_api
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   depends_on:
+  #     - redis
+  #     - searxng
+  #     - crawl4ai
+  #     - qdrant
+  #   environment:
+  #     - QDRANT_URL=http://qdrant:6333
+  #     - CRAWL_URL=http://crawl4ai:11235/crawl
+  #     - SEARX_URL=http://searxng:8080/search
+  #     - COLL=webchunks
+  #   ports:
+  #     - "8000:8000"
+  #   restart: unless-stopped
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "1m"
+  #       max-file: "1"
 
 networks:
   searxng:

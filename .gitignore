@@ -10,3 +10,4 @@ wheels/
 .venv
 searxng/settings.yml
 .env
+.llm.env

@@ -48,7 +48,7 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
     top_urls = [r["url"] for r in results]
     top_titles = [r["title"] for r in results]
     
-    crawled = await asyncio.gather(*(crawl_markdown(u, request.query) for u in top_urls), return_exceptions=True)
+    crawled = await asyncio.gather(*(crawl_markdown(u) for u in top_urls), return_exceptions=True)
 
     markdown_docs = []
     for url, res, title in zip(top_urls, crawled, top_titles):
@@ -100,9 +100,7 @@ async def web_search_context(request: WebSearchRequest):
     top_urls = [r["url"] for r in results]
     top_titles = [r["title"] for r in results]
 
-    crawled = await asyncio.gather(
-        *(crawl_markdown(u, request.query) for u in top_urls), return_exceptions=True
-    )
+    crawled = await asyncio.gather(*(crawl_markdown(u) for u in top_urls), return_exceptions=True)
 
     markdown_docs = []
     for url, res, title in zip(top_urls, crawled, top_titles):
