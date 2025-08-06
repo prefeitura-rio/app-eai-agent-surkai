@@ -10,13 +10,22 @@ import os
 import sys
 from pathlib import Path
 
-# Adiciona o diretório src ao PYTHONPATH
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Adiciona o diretório raiz do projeto ao PYTHONPATH
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 def generate_swagger_docs():
     """Gera a documentação Swagger/OpenAPI da aplicação"""
     try:
-        from main import app
+        # Define variáveis de ambiente temporárias para evitar erros de importação
+        import os
+        os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
+        os.environ.setdefault("COLL", "default")
+        os.environ.setdefault("CRAWL_URL", "http://localhost:3000")
+        os.environ.setdefault("SEARX_URL", "http://localhost:8080")
+        os.environ.setdefault("GEMINI_API_KEY", "dummy-key")
+        
+        from src.main import app
         
         # Cria o diretório de documentação
         docs_dir = Path("docs/swagger")
