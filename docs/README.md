@@ -18,6 +18,11 @@ A documentação Swagger é gerada automaticamente durante o processo de build d
 
 ### Acessando a Documentação
 
+#### Via GitHub (sempre atualizado)
+- **JSON Raw**: Navegue até `docs/swagger/swagger.json` no repositório GitHub
+- **Link direto**: `https://github.com/[seu-usuario]/app-eai-agent-surkai/blob/main/docs/swagger/swagger.json`
+
+#### Via aplicação local
 Quando a aplicação estiver rodando, você pode acessar:
 
 - **Swagger UI**: `http://localhost:8000/docs`

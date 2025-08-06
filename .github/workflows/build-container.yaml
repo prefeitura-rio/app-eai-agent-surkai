@@ -43,6 +43,21 @@ jobs:
           chmod +x scripts/generate_swagger_docs.py
           uv run python scripts/generate_swagger_docs.py
 
+      - name: Commit Swagger Documentation
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docs/swagger/swagger.json
+          
+          # Só commita se houve mudanças
+          if git diff --staged --quiet; then
+            echo "Nenhuma mudança na documentação Swagger detectada."
+          else
+            git commit -m "docs: atualiza documentação Swagger automaticamente"
+            git push
+            echo "✅ Documentação Swagger atualizada e commitada!"
+          fi
+
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 

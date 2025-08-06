@@ -13,4 +13,4 @@ searxng/settings.yml
 .llm.env
 
 # Documentação gerada automaticamente
-docs/swagger/
+docs/swagger/index.html
