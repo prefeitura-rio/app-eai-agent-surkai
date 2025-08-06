@@ -11,3 +11,6 @@ wheels/
 searxng/settings.yml
 .env
 .llm.env
+
+# Documentação gerada automaticamente
+docs/swagger/
