@@ -1,0 +1,303 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Web Search Tool API",
+    "description": "API para ferramentas de busca web e agentes inteligentes",
+    "version": "0.1.0",
+    "contact": {
+      "name": "Equipe de Desenvolvimento",
+      "email": "dev@exemplo.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "paths": {
+    "/api/v1/web_search": {
+      "post": {
+        "tags": [
+          "web_search"
+        ],
+        "summary": "Web Search Endpoint",
+        "operationId": "web_search_endpoint_api_v1_web_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/web_search/context": {
+      "post": {
+        "tags": [
+          "web_search"
+        ],
+        "summary": "Web Search Context Endpoint",
+        "operationId": "web_search_context_endpoint_api_v1_web_search_context_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSearchContextResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/swagger.json": {
+      "get": {
+        "summary": "Get Swagger Json",
+        "description": "Endpoint para acessar diretamente o JSON do Swagger",
+        "operationId": "get_swagger_json_swagger_json_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ContextSnippet": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Url",
+            "description": "URL de origem do trecho."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Título da página."
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "description": "Trecho em texto extraído da página."
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "title",
+          "snippet"
+        ],
+        "title": "ContextSnippet",
+        "description": "Trecho individual retornado por /web_search/context."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WebSearchContextResponse": {
+        "properties": {
+          "snippets": {
+            "items": {
+              "$ref": "#/components/schemas/ContextSnippet"
+            },
+            "type": "array",
+            "minItems": 0,
+            "title": "Snippets",
+            "description": "Lista de trechos relevantes para a query."
+          }
+        },
+        "type": "object",
+        "required": [
+          "snippets"
+        ],
+        "title": "WebSearchContextResponse",
+        "description": "Schema da resposta para /web_search/context."
+      },
+      "WebSearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "Pergunta ou termos de busca."
+          },
+          "k": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "K",
+            "description": "Número máximo de resultados iniciais.",
+            "default": 6
+          },
+          "lang": {
+            "type": "string",
+            "title": "Lang",
+            "description": "Idioma preferido para resultados e summary.",
+            "default": "pt-BR"
+          },
+          "freshness_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness Days",
+            "description": "Restringe busca a conteúdos recentes (opcional)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "WebSearchRequest",
+        "description": "Schema da requisição para /web_search."
+      },
+      "WebSearchResponse": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Resumo objetivo que responde à query."
+          },
+          "sources": {
+            "items": {
+              "type": "string",
+              "maxLength": 2083,
+              "minLength": 1,
+              "format": "uri"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 0,
+            "title": "Sources",
+            "description": "Lista de URLs citadas na resposta."
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "sources"
+        ],
+        "title": "WebSearchResponse",
+        "description": "Schema da resposta retornada pela rota /web_search."
+      }
+    }
+  }
+}
