@@ -298,6 +298,24 @@
         "title": "WebSearchResponse",
         "description": "Schema da resposta retornada pela rota /web_search."
       }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
     }
-  }
+  },
+  "servers": [
+    {
+      "url": "https://services.staging.app.dados.rio/eai-agent-surkai/",
+      "description": "Staging"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
 }
