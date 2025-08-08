@@ -17,7 +17,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: eai-agent-surkai
-          image: ghcr.io/prefeitura-rio/app-eai-agent-surkai:stable
+          image: ghcr.io/prefeitura-rio/app-eai-agent-surkai:latest
           envFrom:
             - secretRef:
                 name: eai-agent-surkai-secrets
