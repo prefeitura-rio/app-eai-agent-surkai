@@ -8,7 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
-searxng/settings.yml
 .env
 .llm.env
 

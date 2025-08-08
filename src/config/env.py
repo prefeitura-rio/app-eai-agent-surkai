@@ -6,3 +6,5 @@ CRAWL_URL = getenv_or_action("CRAWL_URL")
 SEARX_URL = getenv_or_action("SEARX_URL")
 
 GEMINI_API_KEY = getenv_or_action("GEMINI_API_KEY")
+
+SECRET_KEY_SEARXNG = getenv_or_action("SECRET_KEY_SEARXNG")
