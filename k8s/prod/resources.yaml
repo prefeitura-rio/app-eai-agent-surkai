@@ -1,0 +1,80 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eai-agent-surkai
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  selector:
+    matchLabels:
+      app: eai-agent-surkai
+  template:
+    metadata:
+      labels:
+        app: eai-agent-surkai
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: eai-agent-surkai
+          image: ghcr.io/prefeitura-rio/app-eai-agent-surkai:stable
+          envFrom:
+            - secretRef:
+                name: eai-agent-surkai-secrets
+          resources:
+            requests:
+              ephemeral-storage: 100Mi
+              cpu: 500m
+              memory: 2048Mi
+            limits:
+              cpu: 1000m
+              memory: 4096Mi
+          # readinessProbe:
+          #   httpGet:
+          #     path: /v1/health
+          #     port: 8080
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 10
+          #   timeoutSeconds: 3
+          # livenessProbe:
+          #   httpGet:
+          #     path: /v1/health
+          #     port: 8080
+          #   initialDelaySeconds: 15
+          #   periodSeconds: 20
+          #   timeoutSeconds: 3
+      restartPolicy: Always
+
+# ---
+# apiVersion: keda.sh/v1alpha1
+# kind: ScaledObject
+# metadata:
+#   name: eai-agent-surkai-scaled-object
+# spec:
+#   scaleTargetRef:
+#     name: eai-agent-surkai
+#   minReplicaCount: 1
+#   maxReplicaCount: 10
+#   cooldownPeriod: 10
+#   triggers:
+#     - type: prometheus
+#       metadata:
+#         serverAddress: http://prometheus.istio-system.svc.cluster.local:9090
+#         metricName: http_requests_total
+#         threshold: "4000"
+#         query: sum(rate(istio_requests_total{destination_workload="eai-agent-surkai"}[1m]))
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: eai-agent-surkai
+  name: eai-agent-surkai
+spec:
+  ports:
+    - name: "80"
+      port: 80
+      targetPort: 8000
+  selector:
+    app: eai-agent-surkai
