@@ -122,6 +122,10 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
                 chunks = await chunk_markdown(doc["markdown"])
                 logger.debug(f"Generated {len(chunks)} chunks for {doc['url']}")
                 for c in chunks:
+                    # Ensure c is a string
+                    if not isinstance(c, str):
+                        logger.warning(f"Chunk is not a string for {doc['url']}: {type(c)}, value: {c}")
+                        continue
                     txt = c.strip()
                     if len(txt) < 200 or txt in seen_texts:
                         continue
@@ -206,6 +210,9 @@ async def web_search_context(request: WebSearchRequest):
     for doc in markdown_docs:
         chunks = await chunk_markdown(doc["markdown"])
         for c in chunks:
+            # Ensure c is a string
+            if not isinstance(c, str):
+                continue
             txt = c.strip()
             if len(txt) < 200 or txt in seen_texts:
                 continue
