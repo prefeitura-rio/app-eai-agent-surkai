@@ -130,6 +130,28 @@ The application supports both development and production deployments:
 - **Staging**: Kubernetes deployment in `k8s/staging/`
 - **Production**: Kubernetes deployment in `k8s/prod/`
 
+### CI/CD Performance Optimizations
+
+#### Fast Container Builds (~3-5 minutes vs 11-13 minutes)
+- **Multi-stage Dockerfile**: Separates build and production stages
+- **Layer Caching**: Dependencies cached separately from source code  
+- **Parallel Jobs**: Documentation generation runs parallel to Docker build
+- **Optimized Actions**: Using official actions instead of manual setup
+- **Minimal Context**: `.dockerignore` excludes unnecessary files
+
+#### Build Strategies
+- **Dependency Caching**: `pyproject.toml` + `uv.lock` cached independently
+- **GHA Cache**: GitHub Actions cache for Docker layers
+- **Security**: Non-root user in production container
+- **Health Checks**: Built-in container health monitoring
+
+#### Workflow Structure
+```yaml
+jobs:
+  docs:     # Parallel - only on staging
+  build:    # Main container build
+```
+
 API documentation is automatically generated and served at:
 - Swagger UI: `/docs`
 - ReDoc: `/redoc`
