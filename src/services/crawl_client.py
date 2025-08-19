@@ -85,8 +85,26 @@ async def crawl_markdown(url: str) -> Dict:
                 "error_message": result.get("error_message", "")
             }
         
+    except httpx.TimeoutException as e:
+        logger.error(f"Timeout crawling {url}: {e}")
+        return {
+            "url": url,
+            "markdown": "",
+            "success": False,
+            "status_code": 0,
+            "error_message": f"Timeout after 30s: {str(e)}"
+        }
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error crawling {url}: {e.response.status_code} - {e.response.text}")
+        return {
+            "url": url,
+            "markdown": "",
+            "success": False,
+            "status_code": e.response.status_code,
+            "error_message": f"HTTP {e.response.status_code}: {e.response.text}"
+        }
     except Exception as e:
-        logger.error(f"Error crawling {url}: {e}")
+        logger.error(f"Unexpected error crawling {url}: {e}")
         return {
             "url": url,
             "markdown": "",
