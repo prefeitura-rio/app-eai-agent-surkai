@@ -1,85 +1,96 @@
 import httpx
 from typing import Dict
-import asyncio
 from loguru import logger
 
 from src.config.env import CRAWL_URL
 
-# Reusable HTTP client with connection pooling
-_http_client = None
-
-async def get_http_client():
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, connect=5.0),
-            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
-        )
-    return _http_client
-
 async def crawl_markdown(url: str) -> Dict:
+    """Crawl URL using external Crawl4AI service"""
     logger.info(f"Crawling URL: {url}")
-    logger.debug(f"Crawl4AI URL: {CRAWL_URL}")
     
-    # First, test if the service is reachable
-    try:
-        cli = await get_http_client()
-        health_check = await cli.get(CRAWL_URL.replace('/crawl', '/health'), timeout=5.0)
-        logger.debug(f"Crawl4AI health check: {health_check.status_code}")
-    except Exception as e:
-        logger.warning(f"Crawl4AI health check failed: {e}")
+    # Official Crawl4AI Docker API format
+    browser_config_payload = {
+        "type": "BrowserConfig",
+        "params": {"headless": True}
+    }
+    
+    crawler_config_payload = {
+        "type": "CrawlerRunConfig", 
+        "params": {
+            "stream": False,
+            "cache_mode": "bypass",
+            "word_count_threshold": 100,
+            "only_text": False,
+            "skip_internal_links": True,
+            "extraction_strategy": {
+                "type": "BM25ExtractionStrategy",
+                "params": {
+                    "top_k": 10,
+                    "word_count_threshold": 100
+                }
+            }
+        }
+    }
     
     payload = {
         "urls": [url],
-        "f": "bm25", 
-        "skip_internal_links": True,
-        "c": "0"
+        "browser_config": browser_config_payload,
+        "crawler_config": crawler_config_payload
     }
     
     try:
-        cli = await get_http_client()
-        
-        logger.debug(f"Making crawl request with payload: {payload}")
-        r = await cli.post(CRAWL_URL, json=payload)
-        logger.info(f"Crawl response status for {url}: {r.status_code}")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            logger.debug(f"Making crawl request with payload: {payload}")
             
-        r.raise_for_status()
-        result = r.json()
-        
-        if isinstance(result, list) and len(result) > 0:
-            result = result[0]
-        elif isinstance(result, dict) and "results" in result and len(result["results"]) > 0:
-            result = result["results"][0]
-        
-        # Use only markdown content as intended
-        markdown_content = result.get("markdown", "")
-        
-        if isinstance(markdown_content, str) and len(markdown_content.strip()) > 50:
-            logger.info(f"Crawled {url}: {len(markdown_content)} chars of markdown")
-        else:
-            # Log what we got to debug the issue
-            logger.warning(f"Poor markdown extraction for {url}: '{markdown_content}' (type: {type(markdown_content)})")
+            r = await client.post(CRAWL_URL, json=payload)
+            logger.info(f"Crawl response status for {url}: {r.status_code}")
             
-            # Check if crawling actually succeeded
+            r.raise_for_status()
+            response_data = r.json()
+            
+            # Crawl4AI Docker returns a container with results array
+            if "results" in response_data and len(response_data["results"]) > 0:
+                result = response_data["results"][0]  # Get first result
+            else:
+                result = response_data
+            
+            # Extract content from the crawl result
+            markdown_content = result.get("markdown", "")
             success = result.get("success", False)
-            error_msg = result.get("error_message", "")
-            status_code = result.get("status_code", 0)
             
-            logger.warning(f"Crawl details - Success: {success}, Status: {status_code}, Error: {error_msg}")
+            # If main markdown is empty, try alternative fields
+            if not markdown_content or len(markdown_content.strip()) < 50:
+                markdown_content = result.get("cleaned_html", "")
+                if not markdown_content:
+                    markdown_content = result.get("extracted_content", "")
             
-            # Set empty markdown if unusable
-            result["markdown"] = ""
+            if isinstance(markdown_content, str) and len(markdown_content.strip()) > 50:
+                logger.info(f"Successfully crawled {url}: {len(markdown_content)} chars of markdown")
+            else:
+                logger.warning(f"Poor markdown extraction for {url}: '{markdown_content}' (type: {type(markdown_content)})")
+                
+                # Log debugging info
+                success = result.get("success", False)
+                error_msg = result.get("error_message", "")
+                status_code = result.get("status_code", 0)
+                
+                logger.warning(f"Crawl details - Success: {success}, Status: {status_code}, Error: {error_msg}")
+                markdown_content = ""
             
-        logger.debug(f"Response keys: {list(result.keys())}")
+            return {
+                "url": url,
+                "markdown": markdown_content,
+                "success": result.get("success", True),
+                "status_code": result.get("status_code", 200),
+                "error_message": result.get("error_message", "")
+            }
         
-        return result
-        
-    except httpx.TimeoutException as e:
-        logger.error(f"Timeout crawling {url}: {e}")
-        raise
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error crawling {url}: {e.response.status_code} - {e.response.text}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error crawling {url}: {e}")
-        raise
+        logger.error(f"Error crawling {url}: {e}")
+        return {
+            "url": url,
+            "markdown": "",
+            "success": False,
+            "status_code": 0,
+            "error_message": str(e)
+        }
