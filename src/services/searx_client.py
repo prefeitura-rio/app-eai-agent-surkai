@@ -17,7 +17,11 @@ async def searx_search(query: str, k: int = 6, lang: str = "pt-BR") -> List[Dict
     }
     
     try:
-        async with httpx.AsyncClient(timeout=20) as cli:
+        # Use shared HTTP client with connection pooling
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0, connect=3.0),
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=50)
+        ) as cli:
             logger.debug(f"Making request to SearX with params: {params}")
             r = await cli.get(SEARX_URL, params=params)
             logger.info(f"SearX response status: {r.status_code}")

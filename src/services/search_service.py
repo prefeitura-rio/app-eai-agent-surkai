@@ -6,10 +6,30 @@ from src.models.web_search_model import WebSearchRequest, WebSearchResponse
 from src.services.searx_client import searx_search
 from src.services.crawl_client import crawl_markdown
 from src.helpers.chunk_breaker import chunk_markdown
-from src.helpers.vectorstore import ensure_collection, index_chunks, retrieve
+from src.helpers.vectorstore import ensure_collection, index_chunks, retrieve, cleanup_old_chunks, get_collection_stats
 from src.services.llm_client import summarize
 
 URL_REGEX = re.compile(r"^\*\s+(https?://\S+)")
+
+# Semaphore to limit concurrent crawling operations
+CRAWL_SEMAPHORE = asyncio.Semaphore(5)  # Max 5 concurrent crawls
+
+async def limited_crawl_markdown(url: str):
+    """Crawl with concurrency limit"""
+    async with CRAWL_SEMAPHORE:
+        return await crawl_markdown(url)
+
+
+async def _background_cleanup_if_needed():
+    """Background task to check and cleanup if needed"""
+    try:
+        stats = await get_collection_stats()
+        if stats and stats.get("points_count", 0) > 10000:
+            logger.info("Background cleanup: Large collection detected, starting cleanup")
+            await cleanup_old_chunks(max_age_hours=24)
+            logger.info("Background cleanup: Completed")
+    except Exception as e:
+        logger.error(f"Background cleanup failed: {e}")
 
 
 async def _extract_sources(text: str, fallback: List[str] | None = None) -> tuple[str, List[str]]:
@@ -58,7 +78,7 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
         top_titles = [r["title"] for r in results]
         logger.info(f"URLs to crawl: {top_urls}")
         
-        crawled = await asyncio.gather(*(crawl_markdown(u) for u in top_urls), return_exceptions=True)
+        crawled = await asyncio.gather(*(limited_crawl_markdown(u) for u in top_urls), return_exceptions=True)
         logger.info(f"Crawling completed. Results: {len(crawled)} items")
 
         markdown_docs = []
@@ -82,6 +102,9 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
 
         await ensure_collection()
         logger.info("Vector collection ensured")
+        
+        # Schedule background cleanup (non-blocking)
+        asyncio.create_task(_background_cleanup_if_needed())
         
         query_id = str(uuid.uuid4())
         logger.info(f"Generated query ID: {query_id}")
@@ -148,7 +171,7 @@ async def web_search_context(request: WebSearchRequest):
     top_urls = [r["url"] for r in results]
     top_titles = [r["title"] for r in results]
 
-    crawled = await asyncio.gather(*(crawl_markdown(u) for u in top_urls), return_exceptions=True)
+    crawled = await asyncio.gather(*(limited_crawl_markdown(u) for u in top_urls), return_exceptions=True)
 
     markdown_docs = []
     for url, res, title in zip(top_urls, crawled, top_titles):

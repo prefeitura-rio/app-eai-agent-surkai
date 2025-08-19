@@ -68,6 +68,8 @@ The application follows a layered architecture:
 
 - **SearXNG**: Privacy-focused search engine aggregator (port 8080)
 - **Crawl4AI**: Web crawling and content extraction service (port 3001)
+  - API expects `urls` array parameter, not single `url`
+  - Returns array of results or object with `results` array
 - **Qdrant**: Vector database for semantic search (ports 6333/6334)
 - **Redis/Valkey**: Caching layer for SearXNG
 
@@ -88,6 +90,37 @@ Required environment variables (managed via `src/config/env.py`):
 - **Content Deduplication**: Text chunks are deduplicated using sets
 - **Source Extraction**: LLM responses parsed to extract cited URLs
 - **Vector Retrieval**: Semantic search used instead of keyword matching
+- **Auto-Cleanup**: Automatic removal of old chunks (24h TTL) when collection grows large (>10k points)
+
+### Performance Optimizations
+
+#### High-Concurrency Ready
+- **Thread Pool Execution**: SentenceTransformer embeddings run in dedicated thread pool (4 workers)
+- **Concurrency Limits**: Max 5 concurrent crawling operations via semaphore
+- **Connection Pooling**: Reusable HTTP clients with keepalive connections
+- **Background Tasks**: Cleanup operations run as non-blocking background tasks
+
+#### Timeouts & Resilience
+- **SearX**: 15s total, 3s connect timeout
+- **Crawl4AI**: 30s total, 5s connect timeout  
+- **Connection Limits**: 100 max connections, 20 keepalive for Crawl4AI
+- **Graceful Degradation**: Individual service failures don't crash entire pipeline
+
+#### Memory & CPU Efficiency
+- **Async Embeddings**: CPU-intensive encoding moved to thread pool
+- **Non-blocking Cleanup**: Background cleanup doesn't block requests
+- **Connection Reuse**: HTTP clients shared across requests
+
+### Vector Store Management
+
+- **Timestamp Tracking**: All chunks include timestamp for age-based cleanup
+- **Query Isolation**: Each search gets unique `query_id` to avoid cross-contamination
+- **Automatic Cleanup**: Triggers when collection exceeds 10,000 points
+- **Manual Cleanup**: Admin endpoints for collection stats and manual cleanup
+
+#### Admin Endpoints
+- `GET /api/v1/admin/collection-stats` - Get Qdrant collection statistics
+- `POST /api/v1/admin/cleanup?max_age_hours=24` - Manual cleanup trigger
 
 ## Deployment
 
