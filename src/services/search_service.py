@@ -88,6 +88,12 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
                 continue
             
             md = res.get("markdown") or res.get("content") or ""
+            
+            # Ensure md is a string
+            if not isinstance(md, str):
+                logger.warning(f"Content for {url} is not a string: {type(md)}, value: {md}")
+                continue
+                
             logger.debug(f"Content length for {url}: {len(md)} chars")
             
             if len(md.strip()) < 300:
@@ -178,6 +184,10 @@ async def web_search_context(request: WebSearchRequest):
         if isinstance(res, Exception):
             continue
         md = res.get("markdown") or res.get("content") or ""
+        
+        # Ensure md is a string
+        if not isinstance(md, str):
+            continue
 
         if len(md.strip()) < 300:
             continue

@@ -67,9 +67,13 @@ The application follows a layered architecture:
 ### External Dependencies
 
 - **SearXNG**: Privacy-focused search engine aggregator (port 8080)
-- **Crawl4AI**: Web crawling and content extraction service (port 3001)
-  - API expects `urls` array parameter, not single `url`
-  - Returns array of results or object with `results` array
+- **Crawl4AI**: Web crawling and content extraction service (port 11235)
+  - Running in Kubernetes with Istio service mesh
+  - Endpoint: `http://crawl4ai/crawl`
+  - Supports both single URL (`url`) and array (`urls`) formats
+  - Auto-detects correct API format (tries simple first, falls back to array)
+  - Includes health check verification before crawling
+  - Configured for markdown-only extraction with cache bypass
 - **Qdrant**: Vector database for semantic search (ports 6333/6334)
 - **Redis/Valkey**: Caching layer for SearXNG
 

@@ -187,5 +187,13 @@ async def get_collection_stats():
             "status": info.status
         }
     except Exception as e:
-        logger.error(f"Error getting collection stats: {e}")
-        return None
+        if "doesn't exist" in str(e):
+            logger.info(f"Collection '{COLL}' doesn't exist yet")
+            return {
+                "points_count": 0,
+                "vectors_count": 0,
+                "status": "collection_not_exists"
+            }
+        else:
+            logger.error(f"Error getting collection stats: {e}")
+            return None
