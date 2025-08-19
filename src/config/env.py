@@ -19,7 +19,7 @@ logger.info(f"SEARX_URL: {SEARX_URL}")
 GEMINI_API_KEY = getenv_or_action("GEMINI_API_KEY")
 logger.info(f"GEMINI_API_KEY: {mask_string(GEMINI_API_KEY) if GEMINI_API_KEY else 'NOT SET'}")
 
-SECRET_KEY_SEARXNG = getenv_or_action("SECRET_KEY_SEARXNG")
-logger.info(f"SECRET_KEY_SEARXNG: {mask_string(SECRET_KEY_SEARXNG) if SECRET_KEY_SEARXNG else 'NOT SET'}")
+# SECRET_KEY_SEARXNG = getenv_or_action("SECRET_KEY_SEARXNG")
+# logger.info(f"SECRET_KEY_SEARXNG: {mask_string(SECRET_KEY_SEARXNG) if SECRET_KEY_SEARXNG else 'NOT SET'}")
 
 logger.info("Environment configuration loaded successfully")
