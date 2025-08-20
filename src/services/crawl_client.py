@@ -11,7 +11,7 @@ async def crawl_markdown(url: str) -> Dict:
     
     # Simple API format based on actual logs
     payload = {
-        "urls": [url],
+        "url": url,  # Single URL field as expected by API
         "f": "bm25",  # BM25 extraction strategy
         "skip_internal_links": True,
         "c": "0"  # Cache bypass

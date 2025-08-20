@@ -58,7 +58,7 @@ services:
     ports:
       - "3001:11235"
     env_file:
-      - .llm.env
+      - .env
     logging:
       driver: "json-file"
       options:
