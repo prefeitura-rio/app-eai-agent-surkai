@@ -236,3 +236,31 @@ async def get_collection_stats():
         else:
             logger.error(f"Error getting collection stats: {e}")
             return None
+
+
+async def delete_all_collections():
+    """Delete all collections from Qdrant on application startup."""
+    logger.info("Starting deletion of all Qdrant collections on startup")
+    
+    try:
+        collections_resp = await client.get_collections()
+        collection_names = [c.name for c in collections_resp.collections]
+        
+        if not collection_names:
+            logger.info("No collections found to delete")
+            return
+            
+        logger.info(f"Found {len(collection_names)} collections to delete: {collection_names}")
+        
+        for collection_name in collection_names:
+            try:
+                await client.delete_collection(collection_name=collection_name)
+                logger.info(f"Successfully deleted collection '{collection_name}'")
+            except Exception as e:
+                logger.error(f"Error deleting collection '{collection_name}': {e}")
+                
+        logger.info("Finished deleting all collections")
+        
+    except Exception as e:
+        logger.error(f"Error during collection deletion process: {e}")
+        raise
