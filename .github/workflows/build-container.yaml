@@ -84,8 +84,4 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: ${{ github.event.inputs.no-cache != 'true' && 'type=gha' || '' }}
-          cache-to: ${{ github.event.inputs.no-cache != 'true' && 'type=gha,mode=max' || '' }}
-          no-cache: ${{ github.event.inputs.no-cache == 'true' }}
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
+          no-cache: true
