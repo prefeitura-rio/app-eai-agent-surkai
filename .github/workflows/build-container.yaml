@@ -1,138 +1,89 @@
-name: Build and Push image
+name: Build and Push Container
 
 on:
   push:
-    branches:
-      - main
-      - staging
+    branches: [main, staging]
+  workflow_dispatch:
+    inputs:
+      no-cache:
+        description: 'Build without cache'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  # Separate job for docs to run in parallel with build
+  docs:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+    if: github.ref == 'refs/heads/staging'
     steps:
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # - if: ${{ github.ref == 'refs/heads/staging' }}
-      #   uses: SonarSource/sonarqube-scan-action@v4
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-      - name: Check disk space before build
-        run: |
-          echo "=== Espaço em disco disponível ==="
-          df -h
-          echo "=== Espaço em /tmp ==="
-          du -sh /tmp/* 2>/dev/null || true
-          echo "=== Docker system info ==="
-          docker system df || true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
         with:
-          driver-opts: |
-            image=moby/buildkit:latest
-            network=host
+          version: "latest"
+          enable-cache: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
+      - name: Generate docs
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Generate Swagger Documentation
-        run: |
-          chmod +x scripts/generate_swagger_docs.py
+          uv sync --frozen
           uv run python scripts/generate_swagger_docs.py
 
-      - name: Commit Swagger Documentation
+      - name: Commit docs
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add docs/swagger/swagger.json
-          
-          # Só commita se houve mudanças
-          if git diff --staged --quiet; then
-            echo "Nenhuma mudança na documentação Swagger detectada."
-          else
-            git commit -m "docs: atualiza documentação Swagger automaticamente"
+          if ! git diff --staged --quiet; then
+            git commit -m "docs: update swagger [skip ci]"
             git push
-            echo "✅ Documentação Swagger atualizada e commitada!"
           fi
 
-      - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Extract metadata for Docker tags
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
         id: meta
-        run: |
-          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/app-eai-agent-surkai"
-          if [ "${GITHUB_REF##*/}" == "main" ]; then
-            COMMIT_HASH=${{ github.sha }}
-            TAG1="stable"
-            TAG2="$COMMIT_HASH"
-          elif [ "${GITHUB_REF##*/}" == "staging" ]; then
-            COMMIT_HASH=${{ github.sha }}
-            TAG1="latest"
-            TAG2="$COMMIT_HASH"
-          fi
-          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
-          echo "TAG1=$TAG1" >> $GITHUB_ENV
-          echo "TAG2=$TAG2" >> $GITHUB_ENV
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - name: Clean up before Docker build
-        run: |
-          # Remove arquivos temporários desnecessários
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          
-          # Limpar cache do uv se existir
-          uv cache clean || true
-          
-          # Limpar cache do pip se existir
-          pip cache purge || true
-          
-          # Verificar espaço disponível após limpeza
-          echo "=== Espaço após limpeza ==="
-          df -h
-
-      - name: Build and Push Docker Image using Buildx
-        run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            --tag $IMAGE_NAME:$TAG1 \
-            --tag $IMAGE_NAME:$TAG2 \
-            --push .
-
-      - name: Clean up Docker resources
-        if: always()
-        run: |
-          # Limpar recursos do Docker para liberar espaço
-          docker system prune -af --volumes || true
-          docker builder prune -af || true
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          no-cache: true
+          build-args: |
+            CACHE_BUST=${{ github.run_number }}-${{ github.run_attempt }}
