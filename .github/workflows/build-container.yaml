@@ -85,3 +85,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
+          build-args: |
+            CACHE_BUST=${{ github.run_number }}-${{ github.run_attempt }}

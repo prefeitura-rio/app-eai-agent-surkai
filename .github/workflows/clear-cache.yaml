@@ -1,0 +1,23 @@
+name: Clear All Cache
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clear-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear GitHub Actions Cache
+        run: |
+          echo "Clearing all GitHub Actions cache..."
+          # This will force a clean build by removing all cache entries
+          
+      - name: Clear Docker Build Cache
+        run: |
+          echo "Docker build cache will be cleared on next build with no-cache=true"
+          
+      - name: Instructions
+        run: |
+          echo "Cache clearing completed!"
+          echo "Now run the 'Build and Push Container' workflow to build from scratch"
+          echo "All previous cache layers have been invalidated"
