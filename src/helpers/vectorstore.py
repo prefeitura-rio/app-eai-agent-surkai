@@ -8,14 +8,29 @@ from loguru import logger
 from src.config.env import QDRANT_URL, COLL
 
 client = AsyncQdrantClient(url=QDRANT_URL)
-model = SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1")
+
+# Initialize model with logging
+logger.info("Initializing SentenceTransformer model...")
+try:
+    model = SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1")
+    logger.info(f"Model loaded successfully. Embedding dimension: {model.get_sentence_embedding_dimension()}")
+except Exception as e:
+    logger.error(f"Failed to load SentenceTransformer model: {e}")
+    raise
 
 # Thread pool for CPU-intensive embedding operations
 embedding_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="embedding")
 
 def _encode_texts_sync(texts: list[str]):
     """Synchronous encoding function to run in thread pool"""
-    return model.encode(texts)
+    logger.debug(f"Starting synchronous encoding of {len(texts)} texts")
+    try:
+        result = model.encode(texts)
+        logger.debug(f"Successfully encoded {len(texts)} texts, output shape: {result.shape}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in synchronous encoding: {e}")
+        raise
 
 def _encode_text_sync(text: str):
     """Synchronous encoding function for single text"""
@@ -24,12 +39,28 @@ def _encode_text_sync(text: str):
 async def encode_texts_async(texts: list[str]):
     """Async wrapper for text encoding using thread pool"""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(embedding_executor, _encode_texts_sync, texts)
+    try:
+        # Add timeout to prevent hanging
+        return await asyncio.wait_for(
+            loop.run_in_executor(embedding_executor, _encode_texts_sync, texts),
+            timeout=120.0  # 2 minutes timeout
+        )
+    except asyncio.TimeoutError:
+        logger.error("Embedding encoding timed out after 120 seconds")
+        raise Exception("Embedding operation timed out - model may need to download or system is overloaded")
 
 async def encode_text_async(text: str):
     """Async wrapper for single text encoding using thread pool"""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(embedding_executor, _encode_text_sync, text)
+    try:
+        # Add timeout to prevent hanging
+        return await asyncio.wait_for(
+            loop.run_in_executor(embedding_executor, _encode_text_sync, text),
+            timeout=60.0  # 1 minute timeout for single text
+        )
+    except asyncio.TimeoutError:
+        logger.error("Single text embedding encoding timed out after 60 seconds")
+        raise Exception("Embedding operation timed out - model may need to download or system is overloaded")
 
 async def ensure_collection():
     logger.info(f"Ensuring collection '{COLL}' exists in Qdrant at {QDRANT_URL}")
