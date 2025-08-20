@@ -1,10 +1,6 @@
 
 FROM python:3.12-slim
 
-# Cache busting argument
-ARG CACHE_BUST
-RUN echo "Cache bust: $CACHE_BUST"
-
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 RUN apt-get update -y \
@@ -14,6 +10,10 @@ RUN apt-get update -y \
 WORKDIR /app
 
 ADD . /app
+
+# Cache busting argument - placed here to invalidate all subsequent layers
+ARG CACHE_BUST
+RUN echo "Cache bust: $CACHE_BUST"
 
 RUN uv sync
 
