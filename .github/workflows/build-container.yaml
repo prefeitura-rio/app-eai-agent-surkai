@@ -86,9 +86,9 @@ jobs:
         with:
           context: .
           push: true
-          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
+          pull: true
           build-args: |
             CACHE_BUST=${{ github.run_number }}-${{ github.run_attempt }}
