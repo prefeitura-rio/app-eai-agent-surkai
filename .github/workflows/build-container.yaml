@@ -13,6 +13,8 @@ jobs:
   # Separate job for docs to run in parallel with build
   docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: github.ref == 'refs/heads/staging'
     steps:
       - name: Checkout
@@ -21,9 +23,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Generate docs
         run: |
@@ -75,4 +78,5 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          target: production
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
