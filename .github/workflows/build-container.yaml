@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, staging]
   workflow_dispatch:
+    inputs:
+      no-cache:
+        description: 'Build without cache'
+        required: false
+        default: false
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -78,5 +84,8 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: ${{ github.event.inputs.no-cache != 'true' && 'type=gha' || '' }}
+          cache-to: ${{ github.event.inputs.no-cache != 'true' && 'type=gha,mode=max' || '' }}
+          no-cache: ${{ github.event.inputs.no-cache == 'true' }}
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
