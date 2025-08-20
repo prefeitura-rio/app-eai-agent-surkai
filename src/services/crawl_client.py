@@ -9,12 +9,11 @@ async def crawl_markdown(url: str) -> Dict:
     logger.info(f"Crawling URL: {url}")
     logger.debug(f"Crawl4AI URL: {CRAWL_URL}")
     
-    # Simple API format based on actual logs
     payload = {
-        "url": url,  # Single URL field as expected by API
-        "f": "bm25",  # BM25 extraction strategy
+        "url": url,
+        "f": "bm25",
         "skip_internal_links": True,
-        "c": "0"  # Cache bypass
+        "c": "0"
     }
     
     try:
