@@ -1,66 +1,74 @@
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue, Range
-from sentence_transformers import SentenceTransformer
-import uuid, os, time, asyncio
-from concurrent.futures import ThreadPoolExecutor
+from google import genai
+import uuid, time
 from loguru import logger
 
-from src.config.env import QDRANT_URL, COLL
+from src.config.env import QDRANT_URL, COLL, GEMINI_API_KEY
 
 client = AsyncQdrantClient(url=QDRANT_URL)
 
-# Initialize model with logging
-logger.info("Initializing SentenceTransformer model...")
+# Initialize Gemini client for embeddings
+logger.info("Initializing Gemini client for embeddings...")
 try:
-    model = SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1")
-    logger.info(f"Model loaded successfully. Embedding dimension: {model.get_sentence_embedding_dimension()}")
+    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    logger.info("Gemini client initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to load SentenceTransformer model: {e}")
+    logger.error(f"Failed to initialize Gemini client: {e}")
     raise
 
-# Thread pool for CPU-intensive embedding operations
-embedding_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="embedding")
-
-def _encode_texts_sync(texts: list[str]):
-    """Synchronous encoding function to run in thread pool"""
-    logger.debug(f"Starting synchronous encoding of {len(texts)} texts")
-    try:
-        result = model.encode(texts)
-        logger.debug(f"Successfully encoded {len(texts)} texts, output shape: {result.shape}")
-        return result
-    except Exception as e:
-        logger.error(f"Error in synchronous encoding: {e}")
-        raise
-
-def _encode_text_sync(text: str):
-    """Synchronous encoding function for single text"""
-    return model.encode([text])[0]
+# Embedding model configuration
+EMBEDDING_MODEL = "text-embedding-004"
+EMBEDDING_DIMENSION = 768  # text-embedding-004 dimension
 
 async def encode_texts_async(texts: list[str]):
-    """Async wrapper for text encoding using thread pool"""
-    loop = asyncio.get_event_loop()
+    """Generate embeddings using Gemini API"""
+    logger.debug(f"Starting Gemini embedding generation for {len(texts)} texts")
     try:
-        # Add timeout to prevent hanging
-        return await asyncio.wait_for(
-            loop.run_in_executor(embedding_executor, _encode_texts_sync, texts),
-            timeout=120.0  # 2 minutes timeout
+        # Use Gemini embedding API
+        response = await gemini_client.aio.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=texts
         )
-    except asyncio.TimeoutError:
-        logger.error("Embedding encoding timed out after 120 seconds")
-        raise Exception("Embedding operation timed out - model may need to download or system is overloaded")
+        
+        # Extract embeddings from response
+        logger.debug(f"Response structure: {type(response.embeddings[0])}")
+        logger.debug(f"Available attributes: {dir(response.embeddings[0])}")
+        
+        # Try different attribute names
+        if hasattr(response.embeddings[0], 'values'):
+            embeddings = [item.values for item in response.embeddings]
+        elif hasattr(response.embeddings[0], 'vector'):
+            embeddings = [item.vector for item in response.embeddings]
+        else:
+            # Print first item for debugging
+            logger.error(f"First embedding item: {response.embeddings[0]}")
+            raise Exception("Cannot find embedding attribute")
+            
+        logger.debug(f"Successfully generated {len(embeddings)} embeddings via Gemini")
+        return embeddings
+        
+    except Exception as e:
+        logger.error(f"Error generating embeddings via Gemini: {e}")
+        raise
 
 async def encode_text_async(text: str):
-    """Async wrapper for single text encoding using thread pool"""
-    loop = asyncio.get_event_loop()
+    """Generate single text embedding using Gemini API"""
+    logger.debug("Starting Gemini embedding generation for single text")
     try:
-        # Add timeout to prevent hanging
-        return await asyncio.wait_for(
-            loop.run_in_executor(embedding_executor, _encode_text_sync, text),
-            timeout=60.0  # 1 minute timeout for single text
+        # Use Gemini embedding API for single text
+        response = await gemini_client.aio.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=[text]
         )
-    except asyncio.TimeoutError:
-        logger.error("Single text embedding encoding timed out after 60 seconds")
-        raise Exception("Embedding operation timed out - model may need to download or system is overloaded")
+        
+        embedding = response.embeddings[0].values
+        logger.debug("Successfully generated single embedding via Gemini")
+        return embedding
+        
+    except Exception as e:
+        logger.error(f"Error generating single embedding via Gemini: {e}")
+        raise
 
 async def ensure_collection():
     logger.info(f"Ensuring collection '{COLL}' exists in Qdrant at {QDRANT_URL}")
@@ -73,7 +81,7 @@ async def ensure_collection():
             logger.info(f"Creating new collection '{COLL}'")
             await client.recreate_collection(
                 collection_name=COLL,
-                vectors_config=VectorParams(size=model.get_sentence_embedding_dimension(),
+                vectors_config=VectorParams(size=EMBEDDING_DIMENSION,
                                            distance=Distance.COSINE),
             )
             logger.info(f"Collection '{COLL}' created successfully")
@@ -93,7 +101,7 @@ async def index_chunks(chunks, query_id: str):
         return
 
     try:
-        logger.debug("Encoding chunks with sentence transformer (async)")
+        logger.debug("Encoding chunks with Gemini embeddings")
         texts = [c["text"] for c in chunks]
         vecs = await encode_texts_async(texts)
         logger.debug(f"Generated {len(vecs)} embeddings")
@@ -102,7 +110,7 @@ async def index_chunks(chunks, query_id: str):
         points = [
             PointStruct(
                 id=str(uuid.uuid4()),
-                vector=v.tolist(),
+                vector=v,  # Gemini embeddings are already lists
                 payload={
                     "url": c["url"],
                     "title": c["title"],
@@ -127,7 +135,7 @@ async def retrieve(query: str, query_id: str, top_k: int = 8):
     logger.info(f"Retrieving top {top_k} chunks for query: '{query}', query_id: {query_id}")
     
     try:
-        logger.debug("Encoding query for vector search (async)")
+        logger.debug("Encoding query for vector search with Gemini")
         qv = await encode_text_async(query)
         
         flt = Filter(must=[FieldCondition(key="query_id", match=MatchValue(value=query_id))])
@@ -135,7 +143,7 @@ async def retrieve(query: str, query_id: str, top_k: int = 8):
         
         hits = await client.search(
             collection_name=COLL,
-            query_vector=qv.tolist(),
+            query_vector=qv,  # Gemini embeddings are already lists
             limit=top_k,
             query_filter=flt,
         )
