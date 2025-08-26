@@ -96,68 +96,6 @@
         }
       }
     },
-    "/api/v1/admin/collection-stats": {
-      "get": {
-        "tags": [
-          "web_search"
-        ],
-        "summary": "Get Collection Statistics",
-        "description": "Get Qdrant collection statistics.",
-        "operationId": "get_collection_statistics_api_v1_admin_collection_stats_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/cleanup": {
-      "post": {
-        "tags": [
-          "web_search"
-        ],
-        "summary": "Cleanup Collection",
-        "description": "Manually trigger cleanup of old chunks.",
-        "operationId": "cleanup_collection_api_v1_admin_cleanup_post",
-        "parameters": [
-          {
-            "name": "max_age_hours",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 24,
-              "title": "Max Age Hours"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/": {
       "get": {
         "summary": "Root",
