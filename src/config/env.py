@@ -4,11 +4,7 @@ from loguru import logger
 # Log environment configuration on import
 logger.info("Loading environment configuration...")
 
-QDRANT_URL = getenv_or_action("QDRANT_URL")
-logger.info(f"QDRANT_URL: {QDRANT_URL}")
 
-COLL = getenv_or_action("COLL")
-logger.info(f"COLL: {COLL}")
 
 CRAWL_URL = getenv_or_action("CRAWL_URL")
 logger.info(f"CRAWL_URL: {CRAWL_URL}")

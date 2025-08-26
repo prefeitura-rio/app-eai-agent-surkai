@@ -11,7 +11,7 @@ async def _yield_every(n: int):
         await asyncio.sleep(0)
 
 
-async def chunk_markdown(md: str, max_tokens: int = 500, overlap_tokens: int = 100, min_tokens: int = 50):
+async def chunk_markdown(md: str, max_tokens: int = 800, overlap_tokens: int = 150, min_tokens: int = 100):
     """Quebra *markdown* em blocos baseados em sentenças.
 
     max_tokens: tamanho máximo (aprox. nº de palavras) por chunk.

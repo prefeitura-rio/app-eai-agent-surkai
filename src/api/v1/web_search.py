@@ -5,7 +5,6 @@ from loguru import logger
 
 from src.models.web_search_model import WebSearchRequest, WebSearchResponse, WebSearchContextResponse
 from src.services.search_service import web_search, web_search_context
-from src.helpers.vectorstore import cleanup_old_chunks, get_collection_stats
 
 router = APIRouter(prefix="/api/v1", tags=["web_search"])
 
@@ -43,33 +42,4 @@ async def web_search_context_endpoint(req: WebSearchRequest):
         headers={"X-Process-Time": f"{process_time:.4f}"},
     )
 
-
-@router.get("/admin/collection-stats")
-async def get_collection_statistics():
-    """Get Qdrant collection statistics."""
-    logger.info("API: Collection stats request received")
-    try:
-        stats = await get_collection_stats()
-        if stats:
-            return JSONResponse(content=stats)
-        else:
-            raise HTTPException(status_code=500, detail="Failed to get collection stats")
-    except Exception as e:
-        logger.error(f"API: Collection stats failed - error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/admin/cleanup")
-async def cleanup_collection(max_age_hours: int = 24):
-    """Manually trigger cleanup of old chunks."""
-    logger.info(f"API: Manual cleanup request received - max_age_hours: {max_age_hours}")
-    try:
-        await cleanup_old_chunks(max_age_hours=max_age_hours)
-        stats = await get_collection_stats()
-        return JSONResponse(content={
-            "message": f"Cleanup completed for chunks older than {max_age_hours} hours",
-            "collection_stats": stats
-        })
-    except Exception as e:
-        logger.error(f"API: Manual cleanup failed - error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+ 

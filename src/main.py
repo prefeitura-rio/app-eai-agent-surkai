@@ -5,13 +5,11 @@ import os
 from contextlib import asynccontextmanager
 
 from src.api.v1.web_search import router as web_search_router
-from src.helpers.vectorstore import delete_all_collections
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Delete all Qdrant collections
-    await delete_all_collections()
+    # Startup: No vector database initialization needed
     yield
     # Shutdown: Add any cleanup logic here if needed
 

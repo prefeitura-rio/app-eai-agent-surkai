@@ -65,22 +65,7 @@ services:
         max-size: "1m"
         max-file: "1"
 
-  qdrant:
-    container_name: qdrant
-    image: qdrant/qdrant:latest
-    restart: unless-stopped
-    networks:
-      - searxng
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant-data:/qdrant/storage
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"
+
 
   # web_search_api:
   #   container_name: web_search_api
@@ -91,12 +76,9 @@ services:
   #     - redis
   #     - searxng
   #     - crawl4ai
-  #     - qdrant
   #   environment:
-  #     - QDRANT_URL=http://qdrant:6333
   #     - CRAWL_URL=http://crawl4ai:11235/crawl
   #     - SEARX_URL=http://searxng:8080/search
-  #     - COLL=webchunks
   #   ports:
   #     - "8000:8000"
   #   restart: unless-stopped
@@ -114,4 +96,3 @@ volumes:
   caddy-config:
   valkey-data2:
   searxng-data:
-  qdrant-data:

@@ -20,8 +20,8 @@ async def summarize(context: str, query: str, sources: List[str]) -> str:
     logger.info(f"Context length: {len(context)} chars, Sources: {len(sources)}")
     
     if not GEMINI_API_KEY:
-        logger.warning("No GEMINI_API_KEY provided, returning truncated context")
-        return context[:1000]
+        logger.warning("No GEMINI_API_KEY provided, returning full context as fallback")
+        return context
     
     try:
         client = get_client()
@@ -63,5 +63,6 @@ async def summarize(context: str, query: str, sources: List[str]) -> str:
         
     except Exception as e:
         logger.error(f"Error in LLM summarization: {e}")
-        logger.warning("Falling back to truncated context")
-        return context[:1000]
+        logger.warning("Falling back to full context")
+        max_fallback = min(len(context), 10000)
+        return context[:max_fallback]

@@ -24,7 +24,7 @@ python scripts/generate_swagger_docs.py
 
 ### Infrastructure
 ```bash
-# Start all services (Redis, SearXNG, Crawl4AI, Qdrant)
+# Start all services (Redis, SearXNG, Crawl4AI)
 docker-compose up -d
 
 # Stop all services
@@ -32,6 +32,14 @@ docker-compose down
 ```
 
 ## Architecture
+
+**IMPORTANTE: Esta implementação usa uma abordagem LLM-First sem embeddings ou banco vetorial.**
+
+A arquitetura foi simplificada removendo completamente a camada de embedding e Qdrant, resultando em:
+- **Menor latência** (sem encoding de embeddings)
+- **Menor custo** (sem calls de embedding do Gemini)
+- **Arquitetura mais simples** (menos dependências)
+- **Potencial melhor qualidade** (LLM processa contexto mais amplo)
 
 ### Core Components
 
@@ -50,8 +58,8 @@ The application follows a layered architecture:
 - `llm_client.py`: Google Gemini API integration for summarization
 
 **Data Processing** (`src/helpers/`)
-- `chunk_breaker.py`: Text chunking for vector storage
-- `vectorstore.py`: Qdrant vector database operations
+- `chunk_breaker.py`: Text chunking for processing
+- `text_selector.py`: Text-based chunk selection without embeddings
 
 **Models** (`src/models/`)
 - `web_search_model.py`: Pydantic models for request/response validation
@@ -60,9 +68,9 @@ The application follows a layered architecture:
 
 1. **Search Phase**: Query sent to SearXNG to get initial web results
 2. **Crawling Phase**: Parallel crawling of top URLs using Crawl4AI to extract markdown content
-3. **Processing Phase**: Content chunked and indexed in Qdrant vector database
-4. **Retrieval Phase**: Semantic search to find most relevant chunks
-5. **Summarization Phase**: LLM generates summary with extracted sources
+3. **Processing Phase**: Content chunked and deduplicated
+4. **Selection Phase**: Text-based relevance scoring to find most relevant chunks
+5. **Summarization Phase**: LLM processes selected chunks and generates summary with extracted sources
 
 ### External Dependencies
 
@@ -73,18 +81,15 @@ The application follows a layered architecture:
   - Headless browser with cache bypass and skip internal links
   - Extracts top-k relevant content with word count filtering
   - Returns markdown with fallback to cleaned_html/extracted_content
-- **Qdrant**: Vector database for semantic search (ports 6333/6334)
 - **Redis/Valkey**: Caching layer for SearXNG
 
 ### Environment Configuration
 
 Required environment variables (managed via `src/config/env.py`):
-- `QDRANT_URL`: Qdrant vector database URL
-- `COLL`: Qdrant collection name
 - `CRAWL_URL`: Crawl4AI service URL
 - `SEARX_URL`: SearXNG search URL
 - `GEMINI_API_KEY`: Google Gemini API key
-- `SECRET_KEY_SEARXNG`: SearXNG authentication key
+- `SECRET_KEY_SEARXNG`: SearXNG authentication key (optional)
 
 ### Key Design Patterns
 
@@ -92,16 +97,15 @@ Required environment variables (managed via `src/config/env.py`):
 - **Error Resilience**: Crawling failures are handled gracefully with `return_exceptions=True`
 - **Content Deduplication**: Text chunks are deduplicated using sets
 - **Source Extraction**: LLM responses parsed to extract cited URLs
-- **Vector Retrieval**: Semantic search used instead of keyword matching
-- **Auto-Cleanup**: Automatic removal of old chunks (24h TTL) when collection grows large (>10k points)
+- **Text-Based Selection**: Smart chunk selection using relevance scoring without embeddings
+- **LLM-First Architecture**: Leverages large context window for comprehensive processing
 
 ### Performance Optimizations
 
 #### High-Concurrency Ready
-- **Thread Pool Execution**: SentenceTransformer embeddings run in dedicated thread pool (4 workers)
 - **Concurrency Limits**: Max 5 concurrent crawling operations via semaphore
 - **Connection Pooling**: Reusable HTTP clients with keepalive connections
-- **Background Tasks**: Cleanup operations run as non-blocking background tasks
+- **Smart Token Management**: Automatic context sizing to fit within LLM limits
 
 #### Timeouts & Resilience
 - **SearX**: 15s total, 3s connect timeout

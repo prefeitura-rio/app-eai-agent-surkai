@@ -1,4 +1,4 @@
-import re, asyncio, json, uuid
+import re, asyncio, json
 from typing import List
 from loguru import logger
 
@@ -6,7 +6,7 @@ from src.models.web_search_model import WebSearchRequest, WebSearchResponse
 from src.services.searx_client import searx_search
 from src.services.crawl_client import crawl_markdown
 from src.helpers.chunk_breaker import chunk_markdown
-from src.helpers.vectorstore import ensure_collection, index_chunks, retrieve, cleanup_old_chunks, get_collection_stats
+from src.helpers.text_selector import select_chunks_within_token_limit
 from src.services.llm_client import summarize
 
 URL_REGEX = re.compile(r"^\*\s+(https?://\S+)")
@@ -19,17 +19,6 @@ async def limited_crawl_markdown(url: str):
     async with CRAWL_SEMAPHORE:
         return await crawl_markdown(url)
 
-
-async def _background_cleanup_if_needed():
-    """Background task to check and cleanup if needed"""
-    try:
-        stats = await get_collection_stats()
-        if stats and stats.get("points_count", 0) > 10000:
-            logger.info("Background cleanup: Large collection detected, starting cleanup")
-            await cleanup_old_chunks(max_age_hours=24)
-            logger.info("Background cleanup: Completed")
-    except Exception as e:
-        logger.error(f"Background cleanup failed: {e}")
 
 
 async def _extract_sources(text: str, fallback: List[str] | None = None) -> tuple[str, List[str]]:
@@ -50,7 +39,7 @@ async def _extract_sources(text: str, fallback: List[str] | None = None) -> tupl
         else:
             lines.append(line)
     if not sources and fallback:
-        sources = fallback[:4]
+        sources = fallback[:8]
     seen = set()
     deduped = []
     for url in sources:
@@ -106,14 +95,7 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
             logger.error("No valid markdown documents after crawling")
             return WebSearchResponse(summary="Não encontrei informação suficiente.", sources=[])
 
-        await ensure_collection()
-        logger.info("Vector collection ensured")
-        
-        # Schedule background cleanup (non-blocking)
-        asyncio.create_task(_background_cleanup_if_needed())
-        
-        query_id = str(uuid.uuid4())
-        logger.info(f"Generated query ID: {query_id}")
+        logger.info("Starting text-based chunk selection (no vector embeddings)")
         
         seen_texts: set[str] = set()
         all_chunks = []
@@ -127,7 +109,7 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
                         logger.warning(f"Chunk is not a string for {doc['url']}: {type(c)}, value: {c}")
                         continue
                     txt = c.strip()
-                    if len(txt) < 200 or txt in seen_texts:
+                    if len(txt) < 150 or txt in seen_texts:
                         continue
                     seen_texts.add(txt)
                     all_chunks.append({"url": doc["url"], "title": doc["title"], "text": txt})
@@ -136,25 +118,25 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
 
         logger.info(f"Total unique chunks: {len(all_chunks)}")
         
-        if all_chunks:
-            try:
-                await index_chunks(all_chunks, query_id)
-                logger.info(f"Indexed {len(all_chunks)} chunks")
-            except Exception as e:
-                logger.error(f"Error indexing chunks: {e}")
-                return WebSearchResponse(summary="Erro ao indexar conteúdo.", sources=[])
+        if not all_chunks:
+            logger.error("No chunks available for processing")
+            return WebSearchResponse(summary="Não encontrei informação suficiente.", sources=[])
 
         try:
-            hits = await retrieve(request.query, query_id, top_k=8)
-            logger.info(f"Retrieved {len(hits)} relevant chunks")
+            # Seleciona chunks relevantes usando análise textual (sem embeddings)
+            selected_chunks = await select_chunks_within_token_limit(
+                all_chunks, 
+                request.query, 
+                max_tokens=150000  # ~600k chars, melhor aproveitamento do contexto Gemini
+            )
             
-            if not hits:
-                logger.warning("No relevant chunks found in vector search")
-                return WebSearchResponse(summary="Não encontrei informação relevante.", sources=top_urls[:3])
+            if not selected_chunks:
+                logger.warning("No relevant chunks found in text selection")
+                return WebSearchResponse(summary="Não encontrei informação relevante.", sources=top_urls[:6])
 
-            ctx_chunks = [h.payload["text"] for h in hits]
+            ctx_chunks = [chunk["text"] for chunk in selected_chunks]
             context = "\n\n".join(ctx_chunks)
-            logger.info(f"Context length: {len(context)} chars")
+            logger.info(f"Selected {len(selected_chunks)} chunks, context length: {len(context)} chars")
 
             raw_answer = await summarize(context, request.query, top_urls)
             logger.info(f"LLM response received, length: {len(raw_answer)} chars")
@@ -166,7 +148,7 @@ async def web_search(request: WebSearchRequest) -> WebSearchResponse:
             
         except Exception as e:
             logger.error(f"Error in retrieval or summarization: {e}")
-            return WebSearchResponse(summary="Erro no processamento de informações.", sources=top_urls[:3])
+            return WebSearchResponse(summary="Erro no processamento de informações.", sources=top_urls[:6])
             
     except Exception as e:
         logger.error(f"Unexpected error in web_search: {e}")
@@ -202,8 +184,7 @@ async def web_search_context(request: WebSearchRequest):
 
         return WebSearchContextResponse(snippets=[])
 
-    await ensure_collection()
-    query_id = str(uuid.uuid4())
+    logger.info("Processing chunks for context endpoint (no vector embeddings)")
 
     seen_texts: set[str] = set()
     all_chunks = []
@@ -214,25 +195,30 @@ async def web_search_context(request: WebSearchRequest):
             if not isinstance(c, str):
                 continue
             txt = c.strip()
-            if len(txt) < 200 or txt in seen_texts:
+            if len(txt) < 150 or txt in seen_texts:
                 continue
             seen_texts.add(txt)
             all_chunks.append({"url": doc["url"], "title": doc["title"], "text": txt})
 
-    if all_chunks:
-        await index_chunks(all_chunks, query_id)
+    if not all_chunks:
+        from src.models.web_search_model import WebSearchContextResponse
+        return WebSearchContextResponse(snippets=[])
 
-    hits = await retrieve(request.query, query_id, top_k=8)
+    # Seleciona chunks relevantes usando análise textual
+    selected_chunks = await select_chunks_within_token_limit(
+        all_chunks, 
+        request.query, 
+        max_tokens=100000  # Aumentado para melhor contexto no endpoint de snippets
+    )
 
     from src.models.web_search_model import WebSearchContextResponse, ContextSnippet
 
     snippets: list[ContextSnippet] = []
-    for h in hits:
-        pl = h.payload or {}
+    for chunk in selected_chunks:
         snippet = ContextSnippet(
-            url=pl.get("url"),
-            title=pl.get("title") or "",
-            snippet=pl.get("text") or "",
+            url=chunk.get("url"),
+            title=chunk.get("title") or "",
+            snippet=chunk.get("text") or "",
         )
         snippets.append(snippet)
 
