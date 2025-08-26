@@ -14,7 +14,12 @@ async def web_search_endpoint(req: WebSearchRequest):
     start_time = perf_counter()
     
     try:
-        resp = await web_search(req)
+        # Add timeout for entire request
+        import asyncio
+        resp = await asyncio.wait_for(
+            web_search(req),
+            timeout=120.0  # 2 minutos máximo para toda a requisição
+        )
         process_time = perf_counter() - start_time
         
         logger.info(f"API: Web search completed in {process_time:.4f}s - summary length: {len(resp.summary)}, sources: {len(resp.sources)}")
@@ -24,6 +29,10 @@ async def web_search_endpoint(req: WebSearchRequest):
             headers={"X-Process-Time": f"{process_time:.4f}"}
         )
         
+    except asyncio.TimeoutError:
+        process_time = perf_counter() - start_time
+        logger.error(f"API: Web search timed out after {process_time:.4f}s")
+        raise HTTPException(status_code=504, detail="Request timeout - please try again")
     except Exception as e:
         process_time = perf_counter() - start_time
         logger.error(f"API: Web search failed after {process_time:.4f}s - error: {str(e)}")

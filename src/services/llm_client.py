@@ -45,18 +45,28 @@ async def summarize(context: str, query: str, sources: List[str]) -> str:
         )
         
         logger.debug(f"Making request to Gemini model: {MODEL_NAME}")
-        response = await client.aio.models.generate_content(
-            model=MODEL_NAME,
-            config=config,
-            contents=[
-                {
-                    "role": "user",
-                    "parts": [
-                        {"text": f"Search context:\n{context}\nUser question: {query}\nSources: {sources}"},
-                    ]
-                }
-            ],
-        )
+        
+        # Add timeout for LLM request
+        import asyncio
+        try:
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=MODEL_NAME,
+                    config=config,
+                    contents=[
+                        {
+                            "role": "user",
+                            "parts": [
+                                {"text": f"Search context:\n{context}\nUser question: {query}\nSources: {sources}"},
+                            ]
+                        }
+                    ],
+                ),
+                timeout=60.0  # 60 segundos máximo para LLM
+            )
+        except asyncio.TimeoutError:
+            logger.error("LLM request timed out after 60 seconds")
+            raise Exception("LLM request timeout")
         
         logger.info(f"Gemini response received, length: {len(response.text)} chars")
         return response.text

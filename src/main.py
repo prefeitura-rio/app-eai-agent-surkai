@@ -33,6 +33,15 @@ if os.path.exists("docs"):
 async def root():
     return {"message": "Hello World"}
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Kubernetes probes"""
+    return {
+        "status": "healthy", 
+        "service": "eai-agent-surkai",
+        "version": "0.1.0"
+    }
+
 @app.get("/swagger.json")
 async def get_swagger_json():
     """Endpoint para acessar diretamente o JSON do Swagger"""
