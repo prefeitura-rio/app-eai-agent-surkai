@@ -112,6 +112,23 @@
         }
       }
     },
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health check endpoint for Kubernetes probes",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/swagger.json": {
       "get": {
         "summary": "Get Swagger Json",
